@@ -12,14 +12,14 @@ import (
 
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/algorithms"
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/backend"
-	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/config"
+	configs "github.com/soham0w0sarkar/LoadBalancerGo.git/internal/config"
 	ratelimiter "github.com/soham0w0sarkar/LoadBalancerGo.git/internal/middleware/rateLimiter"
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/proxy"
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/server"
 )
 
 func main() {
-	config, err := config.Load("configs/config.yml")
+	config, err := configs.Load("configs/config.yml")
 
 	if err != nil {
 		log.Printf("Error: %v", err)
@@ -55,6 +55,10 @@ func main() {
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
+
+	watcher := configs.NewWatcher("configs/config.yml")
+	watcher.Start()
+	defer watcher.Stop()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

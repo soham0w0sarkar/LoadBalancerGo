@@ -28,7 +28,3 @@ middlewares:
     enabled: true
     rate: 0.033
     size: 2
-  sticky_session:
-    enabled: true
-    cookie_name: LBSESSIONID
-    ttl: 30m
