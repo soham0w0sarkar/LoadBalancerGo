@@ -37,9 +37,9 @@ type LoadBalancingConfig struct {
 }
 
 type RateLimiterConfig struct {
-	Enabled           bool   `yaml:"enabled"`
-	RequestsPerMinute uint16 `yaml:"requests_per_minute"`
-	Size              uint16 `yaml:"size"`
+	Enabled bool    `yaml:"enabled"`
+	Rate    float64 `yaml:"rate"`
+	Size    uint    `yaml:"size"`
 }
 
 type StickySessionConfig struct {

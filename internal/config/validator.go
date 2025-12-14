@@ -54,8 +54,8 @@ func (c *Config) Validate() error {
 
 	rl := c.Middlewares.RateLimiter
 	if rl.Enabled {
-		if rl.RequestsPerMinute == 0 {
-			return fmt.Errorf("rate limiter requests per minute must be positive when enabled")
+		if rl.Rate == 0 {
+			return fmt.Errorf("rate limiter refill rate must be positive when enabled")
 		}
 	}
 

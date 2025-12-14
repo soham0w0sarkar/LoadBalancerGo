@@ -13,6 +13,7 @@ import (
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/algorithms"
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/backend"
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/config"
+	ratelimiter "github.com/soham0w0sarkar/LoadBalancerGo.git/internal/middleware/rateLimiter"
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/proxy"
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/server"
 )
@@ -35,13 +36,19 @@ func main() {
 
 	balancer, _ := algorithms.SetAlgorithm(string(config.LoadBalancing.Strategy))
 
-	proxy := proxy.NewProxy(serverPool, balancer)
+	var handler http.Handler = proxy.NewProxy(serverPool, balancer)
+
+	if config.Middlewares.RateLimiter.Enabled {
+		capacity := config.Middlewares.RateLimiter.Size
+		refillRate := config.Middlewares.RateLimiter.Rate
+		handler = ratelimiter.NewRateLimiter(capacity, refillRate, handler)
+	}
 
 	healthChecker := backend.NewHealthCheck(serverPool, config.LoadBalancing.HealthCheck)
 	healthChecker.Start()
 	defer healthChecker.Stop()
 
-	srv := server.NewServer(&config.Server, proxy)
+	srv := server.NewServer(&config.Server, handler)
 
 	go func() {
 		if err := srv.Start(int(config.Server.Port)); err != nil && err != http.ErrServerClosed {
