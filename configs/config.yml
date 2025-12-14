@@ -1,0 +1,34 @@
+server:
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 10s
+
+backends:
+  - url: http://localhost:8081
+    timeout: 15s
+  - url: http://localhost:8082
+    timeout: 15s
+  - url: http://localhost:8083
+    timeout: 15s
+  - url: http://localhost:8084
+    timeout: 15s
+  - url: http://localhost:8085
+    timeout: 15s
+
+load_balancing:
+  strategy: round_robin
+  health_check:
+    interval: 15s
+    timeout: 5s
+    unhealthy_threshold: 3
+    healthy_threshold: 2
+
+middlewares:
+  rate_limiter:
+    enabled: true
+    requests_per_minute: 100
+    size: 50
+  sticky_session:
+    enabled: true
+    cookie_name: LBSESSIONID
+    ttl: 30m
