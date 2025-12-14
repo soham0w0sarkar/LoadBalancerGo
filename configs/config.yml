@@ -25,6 +25,6 @@ load_balancing:
 
 middlewares:
   rate_limiter:
-    enabled: true
-    rate: 0.033
+    enabled: false
+    rate: 0.058
     size: 2

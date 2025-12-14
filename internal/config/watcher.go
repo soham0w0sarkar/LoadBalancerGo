@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -30,6 +31,9 @@ func (w *Watcher) Start() {
 		return
 	}
 
+	const debounce = 30 * time.Second
+	var timer *time.Timer
+
 	go func() {
 		defer func() {
 			if w.watcher != nil {
@@ -38,21 +42,45 @@ func (w *Watcher) Start() {
 		}()
 
 		for {
+			var timerC <-chan time.Time
+			if timer != nil {
+				timerC = timer.C
+			}
+
 			select {
 			case event, ok := <-w.watcher.Events:
 				if !ok {
 					return
 				}
+
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					fmt.Println("modified file:", event)
+					if timer == nil {
+						timer = time.NewTimer(debounce)
+					} else {
+						if !timer.Stop() {
+							select {
+							case <-timer.C:
+							default:
+							}
+						}
+						timer.Reset(debounce)
+					}
 				}
 			case err, ok := <-w.watcher.Errors:
 				if !ok {
 					return
 				}
 				fmt.Println("error:", err)
+			case <-timerC:
+				c, _ := Load(w.path)
+				fmt.Println("File changed: ", c)
+				timer = nil
 			case <-w.stopChan:
 				fmt.Println("Watcher stopped")
+				if timer != nil {
+					_ = timer.Stop()
+					timer = nil
+				}
 				return
 			}
 		}
