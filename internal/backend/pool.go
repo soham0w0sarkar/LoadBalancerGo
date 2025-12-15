@@ -37,7 +37,9 @@ func (sp *ServerPool) RemoveBackends(urls []string) {
 	sp.mux.Lock()
 	defer sp.mux.Unlock()
 
-	drainTimeout := 30 * time.Second
+	var targetsToRemove []string
+	var maxTimeout time.Duration
+
 	for _, target := range urls {
 		index := slices.IndexFunc(sp.Backends, func(existing *Backend) bool {
 			return existing.URL.String() == target
@@ -47,11 +49,23 @@ func (sp *ServerPool) RemoveBackends(urls []string) {
 		}
 		sp.Backends[index].SetAlive(false)
 
-		sp.mux.Unlock()
-		time.Sleep(drainTimeout)
-		sp.mux.Lock()
-		idx := slices.IndexFunc(sp.Backends, func(existing2 *Backend) bool {
-			return existing2.URL.String() == target
+		targetsToRemove = append(targetsToRemove, sp.Backends[index].URL.String())
+		if sp.Backends[index].Timeout > maxTimeout {
+			maxTimeout = sp.Backends[index].Timeout
+		}
+	}
+
+	if len(targetsToRemove) == 0 {
+		return
+	}
+
+	sp.mux.Unlock()
+	time.Sleep(maxTimeout)
+	sp.mux.Lock()
+
+	for _, t := range targetsToRemove {
+		idx := slices.IndexFunc(sp.Backends, func(existing *Backend) bool {
+			return existing.URL.String() == t
 		})
 		if idx != -1 {
 			sp.Backends = append(sp.Backends[:idx], sp.Backends[idx+1:]...)

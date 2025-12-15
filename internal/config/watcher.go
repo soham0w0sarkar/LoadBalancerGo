@@ -131,14 +131,12 @@ func CheckIfBackendChanged(c *Config, prevConfig *Config) (added []string, remov
 		currMap[b.Url] = struct{}{}
 	}
 
-	// Find added
 	for u := range currMap {
 		if _, ok := prevMap[u]; !ok {
 			added = append(added, u)
 		}
 	}
 
-	// Find removed
 	for u := range prevMap {
 		if _, ok := currMap[u]; !ok {
 			removed = append(removed, u)

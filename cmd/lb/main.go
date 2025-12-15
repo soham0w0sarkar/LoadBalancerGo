@@ -72,7 +72,6 @@ func main() {
 			if len(ev.Added) > 0 {
 				for _, bUrl := range ev.Added {
 					backendUrl, _ := url.Parse(bUrl)
-					// find matching backend config to obtain timeout; fall back to 30s
 					var timeout time.Duration = 30 * time.Second
 					for _, be := range config.Backends {
 						if be.Url == bUrl {
