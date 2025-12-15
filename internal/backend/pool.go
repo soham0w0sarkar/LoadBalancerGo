@@ -18,9 +18,9 @@ type ServerPool struct {
 func NewServerPool(cb config.Config) *ServerPool {
 	var backends []*Backend
 
-	for _, backend := range cb.Backends {
-		backendUrl, _ := url.Parse(backend.Url)
-		backends = append(backends, NewBackend(backendUrl, int(cb.LoadBalancing.HealthCheck.UnhealthyThreshold)))
+	for _, b := range cb.Backends {
+		backendUrl, _ := url.Parse(b.Url)
+		backends = append(backends, NewBackend(backendUrl, int(cb.LoadBalancing.HealthCheck.UnhealthyThreshold), b.Timeout))
 	}
 
 	return &ServerPool{Backends: backends, unhealthyThreshold: int(cb.LoadBalancing.HealthCheck.UnhealthyThreshold)}

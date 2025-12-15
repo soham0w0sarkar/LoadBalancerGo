@@ -17,14 +17,16 @@ type Backend struct {
 	Alive        bool
 	mux          sync.RWMutex
 	ReverseProxy *httputil.ReverseProxy
+	Timeout      time.Duration
 	SuccessCount uint8
 	FailureCount uint8
 }
 
-func NewBackend(url *url.URL, failureThreshold int) *Backend {
+func NewBackend(url *url.URL, failureThreshold int, timeout time.Duration) *Backend {
 	backend := &Backend{
-		URL:   url,
-		Alive: false,
+		URL:     url,
+		Alive:   false,
+		Timeout: timeout,
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(url)

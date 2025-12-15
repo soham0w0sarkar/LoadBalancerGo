@@ -39,6 +39,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if backend.Timeout > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), backend.Timeout)
+		defer cancel()
+		ctx = context.WithValue(ctx, util.CtxAttemptsKey, attempts+1)
+		backend.ReverseProxy.ServeHTTP(w, r.WithContext(ctx))
+		return
+	}
+
 	ctx := context.WithValue(r.Context(), util.CtxAttemptsKey, attempts+1)
 	backend.ReverseProxy.ServeHTTP(w, r.WithContext(ctx))
 }
