@@ -23,7 +23,7 @@ func NewProxy(s *backend.ServerPool, b algorithms.Balancer) *Proxy {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	backends := p.ServerPool.Backends
+	backends := p.ServerPool.GetBackends()
 
 	attempts := util.GetAttemptsFromContext(r)
 	if attempts > 3 {

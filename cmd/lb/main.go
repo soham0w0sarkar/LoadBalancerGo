@@ -77,11 +77,7 @@ func main() {
 				serverPool.AddBackends(backends)
 			}
 			if len(ev.Removed) > 0 {
-				for _, bUrl := range ev.Added {
-					backendUrl, _ := url.Parse(bUrl)
-					backends = append(backends, backend.NewBackend(backendUrl, int(config.LoadBalancing.HealthCheck.UnhealthyThreshold)))
-				}
-				serverPool.RemoveBackends(backends)
+				serverPool.RemoveBackends(ev.Removed)
 			}
 		}
 	}()
