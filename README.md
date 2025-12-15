@@ -1126,21 +1126,6 @@ The architecture makes it welcoming for contributors:
 
 This project is open source and available under the MIT License.
 
-## Roadmap
-
-- [ ] Implement weighted round robin
-- [ ] Implement least connections algorithm
-- [ ] Implement consistent hashing
-- [ ] Add metrics and monitoring (Prometheus)
-- [ ] Add session persistence (sticky sessions)
-- [ ] Add TLS/HTTPS support
-- [ ] Add request/response logging
-- [ ] Add circuit breaker pattern
-- [ ] Docker containerization
-- [ ] Kubernetes deployment manifests
-- [ ] Admin API for runtime management
-- [ ] WebSocket support
-
 ## Troubleshooting
 
 ### Backend Not Receiving Traffic
