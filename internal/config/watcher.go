@@ -14,13 +14,14 @@ type Watcher struct {
 	stopChan chan struct{}
 	once     sync.Once
 	path     string
+	config   *Config
 }
 
-func NewWatcher(path string) *Watcher {
+func NewWatcher(path string, config *Config) *Watcher {
 	if path == "" {
 		path = "configs/config.yml"
 	}
-	return &Watcher{stopChan: make(chan struct{}), path: path}
+	return &Watcher{stopChan: make(chan struct{}), path: path, config: config}
 }
 
 func (w *Watcher) Start() {
@@ -73,7 +74,8 @@ func (w *Watcher) Start() {
 				fmt.Println("error:", err)
 			case <-timerC:
 				c, _ := Load(w.path)
-				fmt.Println("File changed: ", c)
+				b := CheckIfBackendChanged(c, w.config)
+				AddOrRemoveBackend(b)
 				timer = nil
 			case <-w.stopChan:
 				fmt.Println("Watcher stopped")
@@ -104,4 +106,24 @@ func (w *Watcher) Stop() {
 			_ = w.watcher.Close()
 		}
 	})
+}
+
+func CheckIfBackendChanged(c *Config, prevConfig *Config) []*BackendConfig {
+	var changedBackends []*BackendConfig
+	prevBackendsMap := make(map[string]BackendConfig)
+	for _, b := range prevConfig.Backends {
+		prevBackendsMap[b.Url] = b
+	}
+
+	for _, b := range c.Backends {
+		if prevB, exists := prevBackendsMap[b.Url]; !exists || prevB != b {
+			changedBackends = append(changedBackends, &b)
+		}
+	}
+
+	return changedBackends
+}
+
+func AddOrRemoveBackend(b []*BackendConfig) {
+
 }

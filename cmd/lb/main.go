@@ -56,7 +56,7 @@ func main() {
 		}
 	}()
 
-	watcher := configs.NewWatcher("configs/config.yml")
+	watcher := configs.NewWatcher("configs/config.yml", config)
 	watcher.Start()
 	defer watcher.Stop()
 
