@@ -57,10 +57,34 @@ func main() {
 		}
 	}()
 
-	changeChan := make(chan struct{ URL []*url.URL })
+	changeChan := make(chan configs.BackendChange)
 	watcher := configs.NewWatcher("configs/config.yml", config)
 	watcher.Start(changeChan)
 	defer watcher.Stop()
+
+	go func() {
+		for ev := range changeChan {
+			if len(ev.Added) == 0 && len(ev.Removed) == 0 {
+				continue
+			}
+			var backends []*backend.Backend
+
+			if len(ev.Added) > 0 {
+				for _, bUrl := range ev.Added {
+					backendUrl, _ := url.Parse(bUrl)
+					backends = append(backends, backend.NewBackend(backendUrl, int(config.LoadBalancing.HealthCheck.UnhealthyThreshold)))
+				}
+				serverPool.AddBackends(backends)
+			}
+			if len(ev.Removed) > 0 {
+				for _, bUrl := range ev.Added {
+					backendUrl, _ := url.Parse(bUrl)
+					backends = append(backends, backend.NewBackend(backendUrl, int(config.LoadBalancing.HealthCheck.UnhealthyThreshold)))
+				}
+				serverPool.RemoveBackends(backends)
+			}
+		}
+	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

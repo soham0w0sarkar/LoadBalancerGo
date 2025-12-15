@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"sync"
 	"time"
@@ -18,6 +17,11 @@ type Watcher struct {
 	config   *Config
 }
 
+type BackendChange struct {
+	Added   []string
+	Removed []string
+}
+
 func NewWatcher(path string, config *Config) *Watcher {
 	if path == "" {
 		path = "configs/config.yml"
@@ -25,7 +29,7 @@ func NewWatcher(path string, config *Config) *Watcher {
 	return &Watcher{stopChan: make(chan struct{}), path: path, config: config}
 }
 
-func (w *Watcher) Start(changeChan chan struct{ URL []*url.URL }) {
+func (w *Watcher) Start(changeChan chan BackendChange) {
 	var err error
 	w.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
@@ -75,10 +79,10 @@ func (w *Watcher) Start(changeChan chan struct{ URL []*url.URL }) {
 				fmt.Println("error:", err)
 			case <-timerC:
 				c, _ := Load(w.path)
-				b := CheckIfBackendChanged(c, w.config)
-				if len(b) > 0 {
-					changeChan <- struct{ URL []*url.URL }{URL: b}
-					w.config = c
+				added, removed := CheckIfBackendChanged(c, w.config)
+				if len(added) > 0 || len(removed) > 0 {
+					changeChan <- BackendChange{Added: added, Removed: removed}
+					w.config.Backends = c.Backends
 				}
 				timer = nil
 			case <-w.stopChan:
@@ -112,24 +116,34 @@ func (w *Watcher) Stop() {
 	})
 }
 
-func CheckIfBackendChanged(c *Config, prevConfig *Config) []*url.URL {
-	var changedBackends []*url.URL
-	prevBackendsMap := make(map[string]bool)
-	if prevConfig != nil {
-		for _, b := range prevConfig.Backends {
-			prevBackendsMap[b.Url] = true
-		}
+func CheckIfBackendChanged(c *Config, prevConfig *Config) (added []string, removed []string) {
+	if prevConfig == nil {
+		return nil, nil
 	}
 
+	prevMap := make(map[string]struct{})
+	for _, b := range prevConfig.Backends {
+		prevMap[b.Url] = struct{}{}
+	}
+
+	currMap := make(map[string]struct{})
 	for _, b := range c.Backends {
-		if _, exists := prevBackendsMap[b.Url]; !exists {
-			u, err := url.Parse(b.Url)
-			if err != nil {
-				continue
-			}
-			changedBackends = append(changedBackends, u)
+		currMap[b.Url] = struct{}{}
+	}
+
+	// Find added
+	for u := range currMap {
+		if _, ok := prevMap[u]; !ok {
+			added = append(added, u)
 		}
 	}
 
-	return changedBackends
+	// Find removed
+	for u := range prevMap {
+		if _, ok := currMap[u]; !ok {
+			removed = append(removed, u)
+		}
+	}
+
+	return added, removed
 }

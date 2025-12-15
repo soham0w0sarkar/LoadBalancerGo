@@ -24,20 +24,23 @@ func NewServerPool(cb config.Config) *ServerPool {
 	return &ServerPool{Backends: backends}
 }
 
-func (sp *ServerPool) AddBackend(b *Backend) {
+func (sp *ServerPool) AddBackends(b []*Backend) {
 	sp.mux.Lock()
 	defer sp.mux.Unlock()
 
-	sp.Backends = append(sp.Backends, b)
+	sp.Backends = append(sp.Backends, b...)
 }
 
-func (sp *ServerPool) RemoveBackend(b *Backend) {
+func (sp *ServerPool) RemoveBackends(b []*Backend) {
 	sp.mux.Lock()
 	defer sp.mux.Unlock()
 
-	for idx, backend := range sp.Backends {
-		if backend == b {
-			sp.Backends = slices.Delete(sp.Backends, idx, idx+1)
+	for _, rb := range b {
+		index := slices.IndexFunc(sp.Backends, func(existing *Backend) bool {
+			return existing.URL.String() == rb.URL.String()
+		})
+		if index != -1 {
+			sp.Backends = append(sp.Backends[:index], sp.Backends[index+1:]...)
 		}
 	}
 }
