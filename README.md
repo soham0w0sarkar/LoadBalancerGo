@@ -1,5 +1,3 @@
-# LoadBalancerGo
-
 A high-performance, production-ready HTTP load balancer written in Go with advanced features including dynamic backend management, health checking, rate limiting, and hot-reload configuration.
 
 ## Features
@@ -11,10 +9,22 @@ A high-performance, production-ready HTTP load balancer written in Go with advan
   - Weighted, Least Connection, Consistent Hash (planned)
 
 - **Dynamic Backend Pool Management**
-  - Thread-safe backend addition and removal
+  - Thread-safe batch backend operations (add/remove multiple at once)
   - Hot-reload configuration without downtime
   - File-system watcher for automatic config updates
-  - Mutex-protected concurrent access to backend pool
+  - Smart graceful draining using backend-specific timeouts
+  - Safe copy mechanism prevents external slice modification
+
+- **Intelligent Configuration Watcher**
+  - Detects both added AND removed backends
+  - Returns structured change events (Added/Removed lists)
+  - Debounced updates to prevent reload storms
+  - Coordinates with main goroutine via channels
+
+- **Per-Backend Timeout Configuration**
+  - Each backend can have individual timeout settings
+  - Timeouts properly propagated during hot-reload
+  - Context-based timeout enforcement in proxy layer
 
 - **Health Checking**
   - Periodic health checks with configurable intervals
@@ -37,7 +47,7 @@ A high-performance, production-ready HTTP load balancer written in Go with advan
 - **Graceful Shutdown**
   - Signal handling (SIGTERM, SIGINT)
   - Graceful server shutdown with timeout
-  - Proper resource cleanup
+  - Proper resource cleanup (health checker, watcher, channels)
 
 ## Architecture
 
@@ -201,9 +211,50 @@ handler = ratelimiter.NewRateLimiter(..., handler)
 
 This makes the dependency graph crystal clear and enables easy substitution of components for testing or different environments.
 
-### Thread Safety Implementation
+## Key Improvements in Latest Version
 
-The load balancer implements comprehensive thread safety across multiple components:
+### 1. **Smart Graceful Backend Removal**
+The load balancer now intelligently handles backend removal:
+- Marks all backends as dead simultaneously
+- Uses the **maximum backend timeout** as drain period (not hardcoded)
+- All removals happen in parallel instead of sequentially
+- Fast backends (5s timeout) drain quickly, slow ones (60s) get adequate time
+
+**Performance benefit**: Removing 3 backends with different timeouts now takes `max(timeout1, timeout2, timeout3)` instead of `timeout1 + timeout2 + timeout3`.
+
+### 2. **Intelligent Change Detection**
+The watcher detects both additions and removals:
+```go
+type BackendChange struct {
+    Added   []string  // New backends to add
+    Removed []string  // Old backends to remove
+}
+```
+
+### 3. **Batch Backend Operations**
+- `AddBackends([]*Backend)`: Add multiple backends atomically
+- `RemoveBackends([]string)`: Remove multiple backends in parallel
+- More efficient than sequential operations
+
+### 4. **Safe Backend Access Pattern**
+```go
+// NEW: Safe copy prevents external modification
+backends := p.ServerPool.GetBackends()
+```
+
+Load balancing algorithms work with copies, can't corrupt the pool.
+
+### 5. **Per-Backend Timeout Configuration**
+Each backend maintains its own timeout:
+```yaml
+backends:
+  - url: http://fast-service:8081
+    timeout: 5s
+  - url: http://slow-service:8082
+    timeout: 30s
+```
+
+The proxy applies the correct timeout per backend, and removals use these timeouts for proper draining.
 
 #### 1. Backend Pool (`internal/backend/pool.go`)
 - **Read-Write Mutex Protection**: Uses `sync.RWMutex` for concurrent access
@@ -314,18 +365,57 @@ middlewares:
 
 ### Configuration Hot-Reload
 
-The load balancer automatically detects configuration changes:
+The load balancer automatically detects and applies configuration changes **in real-time**:
 
-1. Modify `configs/config.yml`
-2. Changes are detected via file system watcher
-3. New backends are added to the pool dynamically
-4. No downtime or restart required
+**How it works:**
+
+1. **File Monitoring**: fsnotify watches `configs/config.yml` for write events
+2. **Debounce Period**: Changes are buffered for 30 seconds to handle multiple edits
+3. **Diff Calculation**: Compares current vs. new backend lists
+4. **Backend Addition**: New backends are:
+   - Parsed and validated
+   - Created with correct timeout settings
+   - Added to pool via thread-safe batch operation
+   - Immediately start receiving health checks
+5. **Backend Removal**: Removed backends are:
+   - Marked as dead (stops receiving new traffic)
+   - Given 30-second drain period for active connections
+   - Removed from pool after drain completes
+   - Gracefully shut down without dropping requests
+
+**Example workflow:**
+
+```yaml
+# Initial config
+backends:
+  - url: http://localhost:8081
+    timeout: 15s
+  - url: http://localhost:8082
+    timeout: 15s
+
+# Edit config.yml - add/remove backends
+backends:
+  - url: http://localhost:8082
+    timeout: 15s
+  - url: http://localhost:8083  # NEW
+    timeout: 20s
+  - url: http://localhost:8084  # NEW
+    timeout: 10s
+# (removed 8081)
+```
+
+**What happens:**
+- After 30 seconds, changes are detected
+- Backend 8081 marked dead, waits 15s (its timeout), then removed
+- Backends 8083 and 8084 added and health-checked immediately
+- No requests dropped during transition
 
 **Thread-Safe Guarantees:**
 - Configuration changes are debounced (30 seconds)
-- Backend pool updates use mutex protection
-- Existing connections continue uninterrupted
-- New backends are health-checked before receiving traffic
+- Batch operations use mutex protection
+- Existing connections complete before backend removal
+- New backends health-checked before receiving traffic
+- Concurrent operations properly coordinated
 
 ## Usage
 
@@ -1036,6 +1126,20 @@ The architecture makes it welcoming for contributors:
 
 This project is open source and available under the MIT License.
 
+## Roadmap
+
+- [ ] Implement weighted round robin
+- [ ] Implement least connections algorithm
+- [ ] Implement consistent hashing
+- [ ] Add metrics and monitoring (Prometheus)
+- [ ] Add session persistence (sticky sessions)
+- [ ] Add TLS/HTTPS support
+- [ ] Add request/response logging
+- [ ] Add circuit breaker pattern
+- [ ] Docker containerization
+- [ ] Kubernetes deployment manifests
+- [ ] Admin API for runtime management
+- [ ] WebSocket support
 
 ## Troubleshooting
 
