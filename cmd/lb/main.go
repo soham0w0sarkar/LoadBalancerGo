@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -56,8 +57,9 @@ func main() {
 		}
 	}()
 
+	changeChan := make(chan struct{ URL []*url.URL })
 	watcher := configs.NewWatcher("configs/config.yml", config)
-	watcher.Start()
+	watcher.Start(changeChan)
 	defer watcher.Stop()
 
 	quit := make(chan os.Signal, 1)

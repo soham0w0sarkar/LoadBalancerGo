@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"sync"
 	"time"
@@ -24,7 +25,7 @@ func NewWatcher(path string, config *Config) *Watcher {
 	return &Watcher{stopChan: make(chan struct{}), path: path, config: config}
 }
 
-func (w *Watcher) Start() {
+func (w *Watcher) Start(changeChan chan struct{ URL []*url.URL }) {
 	var err error
 	w.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
@@ -75,7 +76,10 @@ func (w *Watcher) Start() {
 			case <-timerC:
 				c, _ := Load(w.path)
 				b := CheckIfBackendChanged(c, w.config)
-				AddOrRemoveBackend(b)
+				if len(b) > 0 {
+					changeChan <- struct{ URL []*url.URL }{URL: b}
+					w.config = c
+				}
 				timer = nil
 			case <-w.stopChan:
 				fmt.Println("Watcher stopped")
@@ -108,22 +112,24 @@ func (w *Watcher) Stop() {
 	})
 }
 
-func CheckIfBackendChanged(c *Config, prevConfig *Config) []*BackendConfig {
-	var changedBackends []*BackendConfig
-	prevBackendsMap := make(map[string]BackendConfig)
-	for _, b := range prevConfig.Backends {
-		prevBackendsMap[b.Url] = b
+func CheckIfBackendChanged(c *Config, prevConfig *Config) []*url.URL {
+	var changedBackends []*url.URL
+	prevBackendsMap := make(map[string]bool)
+	if prevConfig != nil {
+		for _, b := range prevConfig.Backends {
+			prevBackendsMap[b.Url] = true
+		}
 	}
 
 	for _, b := range c.Backends {
-		if prevB, exists := prevBackendsMap[b.Url]; !exists || prevB != b {
-			changedBackends = append(changedBackends, &b)
+		if _, exists := prevBackendsMap[b.Url]; !exists {
+			u, err := url.Parse(b.Url)
+			if err != nil {
+				continue
+			}
+			changedBackends = append(changedBackends, u)
 		}
 	}
 
 	return changedBackends
-}
-
-func AddOrRemoveBackend(b []*BackendConfig) {
-
 }

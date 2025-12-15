@@ -2,12 +2,15 @@ package backend
 
 import (
 	"net/url"
+	"slices"
+	"sync"
 
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/config"
 )
 
 type ServerPool struct {
 	Backends []*Backend
+	mux      sync.RWMutex
 }
 
 func NewServerPool(cb config.Config) *ServerPool {
@@ -19,4 +22,22 @@ func NewServerPool(cb config.Config) *ServerPool {
 	}
 
 	return &ServerPool{Backends: backends}
+}
+
+func (sp *ServerPool) AddBackend(b *Backend) {
+	sp.mux.Lock()
+	defer sp.mux.Unlock()
+
+	sp.Backends = append(sp.Backends, b)
+}
+
+func (sp *ServerPool) RemoveBackend(b *Backend) {
+	sp.mux.Lock()
+	defer sp.mux.Unlock()
+
+	for idx, backend := range sp.Backends {
+		if backend == b {
+			sp.Backends = slices.Delete(sp.Backends, idx, idx+1)
+		}
+	}
 }
