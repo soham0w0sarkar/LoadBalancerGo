@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/soham0w0sarkar/LoadBalancerGo.git/internal/config"
@@ -14,15 +15,21 @@ type HealthCheck struct {
 	config     config.HealthCheckConfig
 	stopChan   chan struct{}
 	client     *http.Client
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 func NewHealthCheck(pool *ServerPool, cfg config.HealthCheckConfig) *HealthCheck {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &HealthCheck{
 		ServerPool: pool,
 		config:     cfg,
 		client: &http.Client{
 			Timeout: cfg.Timeout,
 		},
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -50,18 +57,31 @@ func (hc *HealthCheck) run() {
 }
 
 func (hc *HealthCheck) checkAll() {
-	backends := hc.ServerPool.Backends
+	// Fix race condition: Use GetBackends() which returns a safe copy
+	backends := hc.ServerPool.GetBackends()
 
 	for _, backend := range backends {
+		// Track goroutine to prevent leaks
+		hc.wg.Add(1)
 		go hc.check(backend)
 	}
 }
 
 func (hc *HealthCheck) check(backend *Backend) {
-	healthURL := backend.URL.String() + "/health"
+	defer hc.wg.Done()
 
-	ctx, cancel := context.WithTimeout(context.Background(), hc.config.Timeout)
+	// Fix goroutine leak: Use context that can be cancelled
+	ctx, cancel := context.WithTimeout(hc.ctx, hc.config.Timeout)
 	defer cancel()
+
+	// Check if context was cancelled before starting
+	select {
+	case <-hc.ctx.Done():
+		return
+	default:
+	}
+
+	healthURL := backend.URL.String() + "/health"
 
 	req, err := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
 	if err != nil {
@@ -71,6 +91,10 @@ func (hc *HealthCheck) check(backend *Backend) {
 
 	resp, err := hc.client.Do(req)
 	if err != nil {
+		// Don't update failure count if context was cancelled (backend removed)
+		if ctx.Err() == context.Canceled {
+			return
+		}
 		backend.UpdateFailureCount(int(hc.config.UnhealthyThreshold))
 		return
 	}
@@ -84,7 +108,16 @@ func (hc *HealthCheck) check(backend *Backend) {
 }
 
 func (hc *HealthCheck) Stop() {
+	// Cancel all health check contexts to stop running goroutines
+	if hc.cancel != nil {
+		hc.cancel()
+	}
+
+	// Stop the main health check loop
 	if hc.stopChan != nil {
 		close(hc.stopChan)
 	}
+
+	// Wait for all health check goroutines to finish
+	hc.wg.Wait()
 }

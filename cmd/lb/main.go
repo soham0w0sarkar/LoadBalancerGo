@@ -33,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	serverPool := backend.NewServerPool(*config)
+	serverPool := backend.NewServerPool(config)
 
 	balancer, _ := algorithms.SetAlgorithm(string(config.LoadBalancing.Strategy))
 

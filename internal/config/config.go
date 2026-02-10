@@ -1,6 +1,7 @@
 package config
 
 import (
+	"sync/atomic"
 	"time"
 )
 
@@ -42,15 +43,17 @@ type RateLimiterConfig struct {
 	Size    uint    `yaml:"size"`
 }
 
-type StickySessionConfig struct {
-	Enabled    bool          `yaml:"enabled"`
-	CookieName string        `yaml:"cookie_name"`
-	TTL        time.Duration `yaml:"ttl"`
+type LoadShedderConfig struct {
+	Enabled         bool         `yaml:"enabled"`
+	inFlight        atomic.Int64 `yaml:"in_flight"`
+	p95LatencyEWMA  atomic.Int64 `yaml:"p95_latency_ewma"`
+	errorRate       atomic.Int64 `yaml:"error_rate"`
+	healthyBackends atomic.Int64 `yaml:"healthy_backends"`
 }
 
 type MiddlewareConfig struct {
-	RateLimiter   RateLimiterConfig   `yaml:"rate_limiter"`
-	StickySession StickySessionConfig `yaml:"sticky_session"`
+	RateLimiter RateLimiterConfig `yaml:"rate_limiter"`
+	LoadShedder LoadShedderConfig `yaml:"load_shedder"`
 }
 
 type Config struct {

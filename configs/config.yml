@@ -14,6 +14,16 @@ backends:
     timeout: 15s
   - url: http://localhost:8085
     timeout: 15s
+  - url: http://localhost:8086
+    timeout: 15s
+  - url: http://localhost:8087
+    timeout: 15s
+  - url: http://localhost:8088
+    timeout: 15s
+  - url: http://localhost:8089
+    timeout: 15s
+  - url: http://localhost:8090
+    timeout: 15s
 
 load_balancing:
   strategy: round_robin
@@ -26,5 +36,9 @@ load_balancing:
 middlewares:
   rate_limiter:
     enabled: false
-    rate: 0.058
-    size: 2
+    rate: 10
+    size: 20
+  load_shedding:
+    enabled: true
+    max_concurrent_requests: 100
+    queue_size: 50

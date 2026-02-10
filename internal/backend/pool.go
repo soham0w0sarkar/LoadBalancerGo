@@ -15,7 +15,7 @@ type ServerPool struct {
 	unhealthyThreshold int
 }
 
-func NewServerPool(cb config.Config) *ServerPool {
+func NewServerPool(cb *config.Config) *ServerPool {
 	var backends []*Backend
 
 	for _, b := range cb.Backends {
@@ -35,7 +35,6 @@ func (sp *ServerPool) AddBackends(b []*Backend) {
 
 func (sp *ServerPool) RemoveBackends(urls []string) {
 	sp.mux.Lock()
-	defer sp.mux.Unlock()
 
 	var targetsToRemove []string
 	var maxTimeout time.Duration

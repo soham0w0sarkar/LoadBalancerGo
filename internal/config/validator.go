@@ -59,15 +59,5 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	ss := c.Middlewares.StickySession
-	if ss.Enabled {
-		if ss.CookieName == "" {
-			return fmt.Errorf("sticky session cookie name cannot be empty when enabled")
-		}
-		if ss.TTL <= 0 {
-			return fmt.Errorf("sticky session TTL must be positive when enabled")
-		}
-	}
-
 	return nil
 }
