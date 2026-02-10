@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -23,31 +24,51 @@ type Backend struct {
 }
 
 func NewBackend(url *url.URL, failureThreshold int, timeout time.Duration) *Backend {
-	backend := &Backend{
-		URL:     url,
-		Alive:   false,
-		Timeout: timeout,
-	}
+    backend := &Backend{
+        URL:     url,
+        Alive:   false,
+        Timeout: timeout,
+    }
 
-	proxy := httputil.NewSingleHostReverseProxy(url)
+    proxy := httputil.NewSingleHostReverseProxy(url)
+    
+    proxy.Transport = &http.Transport{
+        MaxIdleConns:        1000,   
+        MaxIdleConnsPerHost: 200,  
+        MaxConnsPerHost:     0,    
+        IdleConnTimeout:     90 * time.Second,
+        
+        DisableKeepAlives:   false,
+        
+        DialContext: (&net.Dialer{
+            Timeout:   5 * time.Second,   
+            KeepAlive: 30 * time.Second, 
+        }).DialContext,
+        
+        TLSHandshakeTimeout:   10 * time.Second,
+        ResponseHeaderTimeout: timeout,
+        ExpectContinueTimeout: 1 * time.Second,
+      
+        ForceAttemptHTTP2: true,
+    }
 
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		fmt.Printf("[%s] %s\n", url, err.Error())
+    proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+        fmt.Printf("[%s] %s\n", url, err.Error())
 
-		retries := util.GetRetryFromContext(r)
-		if retries < failureThreshold {
-			time.Sleep(10 * time.Millisecond)
-			ctx := context.WithValue(r.Context(), util.CtxRetryKey, retries+1)
-			backend.UpdateFailureCount(failureThreshold)
-			proxy.ServeHTTP(w, r.WithContext(ctx))
-			return
-		}
+        retries := util.GetRetryFromContext(r)
+        if retries < failureThreshold {
+            time.Sleep(10 * time.Millisecond)
+            ctx := context.WithValue(r.Context(), util.CtxRetryKey, retries+1)
+            backend.UpdateFailureCount(failureThreshold)
+            proxy.ServeHTTP(w, r.WithContext(ctx))
+            return
+        }
 
-		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
-	}
+        http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+    }
 
-	backend.ReverseProxy = proxy
-	return backend
+    backend.ReverseProxy = proxy
+    return backend
 }
 
 func (b *Backend) IsAlive() (alive bool) {

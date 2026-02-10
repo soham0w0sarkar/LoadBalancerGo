@@ -4,25 +4,25 @@ server:
   write_timeout: 10s
 
 backends:
-  - url: http://localhost:8081
+  - url: http://127.0.0.1:8081
     timeout: 15s
-  - url: http://localhost:8082
+  - url: http://127.0.0.1:8082
     timeout: 15s
-  - url: http://localhost:8083
+  - url: http://127.0.0.1:8083
     timeout: 15s
-  - url: http://localhost:8084
+  - url: http://127.0.0.1:8084
     timeout: 15s
-  - url: http://localhost:8085
+  - url: http://127.0.0.1:8085
     timeout: 15s
-  - url: http://localhost:8086
+  - url: http://127.0.0.1:8086
     timeout: 15s
-  - url: http://localhost:8087
+  - url: http://127.0.0.1:8087
     timeout: 15s
-  - url: http://localhost:8088
+  - url: http://127.0.0.1:8088
     timeout: 15s
-  - url: http://localhost:8089
+  - url: http://127.0.0.1:8089
     timeout: 15s
-  - url: http://localhost:8090
+  - url: http://127.0.0.1:8090
     timeout: 15s
 
 load_balancing:

@@ -35,6 +35,7 @@ func (sp *ServerPool) AddBackends(b []*Backend) {
 
 func (sp *ServerPool) RemoveBackends(urls []string) {
 	sp.mux.Lock()
+	defer sp.mux.Unlock()
 
 	var targetsToRemove []string
 	var maxTimeout time.Duration
